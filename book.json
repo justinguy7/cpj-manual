@@ -1,0 +1,12 @@
+{
+    "title": "Sapphire Manual",
+    "description": "Sapphire Aircraft Flight Manual",
+    "author": "SpektreWorks Inc",
+    "links": {
+        "sidebar": {
+            "Contact us / Support": "https://spektreworks.com/"
+        }
+    },
+    "pluginsConfig": {},
+    "plugins": ["-sharing", "hints"]
+}
