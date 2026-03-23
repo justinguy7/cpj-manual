@@ -1,0 +1,63 @@
+name: Build & Deploy MkDocs
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'  # MkDocs works well on 3.9–3.12
+
+      - name: Install MkDocs and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs mkdocs-material  # add other plugins/themes you use, e.g. mkdocs-gen-files
+
+      - name: Build MkDocs site
+        run: mkdocs build --verbose
+
+      - name: Setup SSH for deployment
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server with rsync
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            --exclude '.htpasswd' \
+            --exclude 'admin/.htpasswd' \
+            --exclude '.htaccess' \
+            --exclude 'some-other-protected-file-or-folder/' \
+            site/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_TARGET }}/
+
+      - name: Notify on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}          # ← add this secret
+          password: ${{ secrets.EMAIL_PASSWORD }}          # ← add this secret (app password!)
+          subject: "[CI Failure] ${{ github.repository }} - Deploy failed"
+          body: |
+            Workflow ${{ github.workflow }} failed!
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Job status: ${{ job.status }}
+          to: justin.watson@spektreworks.com
+          from: GitHub Actions <no-reply@github.com>
